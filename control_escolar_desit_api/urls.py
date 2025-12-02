@@ -9,6 +9,8 @@ from control_escolar_desit_api.views import maestros
 from control_escolar_desit_api.views import auth
 from control_escolar_desit_api.views import bootstrap
 
+from control_escolar_desit_api.views.eventos import EventosAll, EventosView
+
 urlpatterns = [
     #Create Admin
         path('admin/', users.AdminView.as_view()),
@@ -29,7 +31,13 @@ urlpatterns = [
     #Login
         path('login/', auth.CustomAuthToken.as_view()),
     #Logout
-        path('logout/', auth.Logout.as_view())
+        path('logout/', auth.Logout.as_view()), 
+
+    # Tabla/registrar 
+    path('lista-eventos/', EventosAll.as_view()), 
+    
+    # Editar/eliminar
+    path('eventos/', EventosView.as_view()),
 ]
 
 if settings.DEBUG:

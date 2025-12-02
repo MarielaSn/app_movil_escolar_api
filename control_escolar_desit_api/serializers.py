@@ -29,3 +29,15 @@ class MaestroSerializer(serializers.ModelSerializer):
     class Meta:
         model = Maestros
         fields = '__all__'
+
+class EventoSerializer(serializers.ModelSerializer):
+    responsable_nombre = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Eventos
+        fields = '__all__'
+
+    def get_responsable_nombre(self, obj):
+        if obj.responsable:
+            return f"{obj.responsable.first_name} {obj.responsable.last_name}"
+        return ""
