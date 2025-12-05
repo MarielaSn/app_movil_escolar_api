@@ -13,31 +13,28 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ('id','first_name','last_name', 'email')
 
 class AdminSerializer(serializers.ModelSerializer):
-    user=UserSerializer(read_only=True)
+    user = UserSerializer(read_only=True)
     class Meta:
         model = Administradores
         fields = '__all__'
         
 class AlumnoSerializer(serializers.ModelSerializer):
-    user=UserSerializer(read_only=True)
+    user = UserSerializer(read_only=True)
     class Meta:
         model = Alumnos
         fields = "__all__"
 
 class MaestroSerializer(serializers.ModelSerializer):
-    user=UserSerializer(read_only=True)
+    user = UserSerializer(read_only=True)
     class Meta:
         model = Maestros
         fields = '__all__'
 
 class EventoSerializer(serializers.ModelSerializer):
-    responsable_nombre = serializers.SerializerMethodField()
-
+    responsable_data = UserSerializer(source='responsable', read_only=True)
+    
     class Meta:
         model = Eventos
         fields = '__all__'
-
-    def get_responsable_nombre(self, obj):
-        if obj.responsable:
-            return f"{obj.responsable.first_name} {obj.responsable.last_name}"
-        return ""
+        # 'responsable' (el ID) se usa para escribir/crear
+        # 'responsable_data' (el objeto) se usa para leer/mostrar nombre

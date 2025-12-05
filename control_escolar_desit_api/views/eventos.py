@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from django.db import transaction
 import json
 
+# Asegúrate de importar el nombre correcto
 from control_escolar_desit_api.serializers import EventoSerializer
 from control_escolar_desit_api.models import Eventos, User
 
@@ -21,29 +22,31 @@ class EventosAll(generics.CreateAPIView):
         # Query base: ordenados por fecha
         eventos = Eventos.objects.all().order_by("fecha_realizacion")
 
-        # Filtros según reglas del PDF (Puntos 19 y 20)
+        # Filtros según reglas
         if es_admin:
-            # Admin ve todo
             pass
         elif es_maestro:
-            # Maestro ve: 'Profesores' y 'Publico General'
-            # Como guardamos un string JSON, usamos contains (simple pero funcional para este caso)
             eventos = eventos.filter(
                 Q(publico_objetivo__contains='Profesores') | 
-                Q(publico_objetivo__contains='Publico General')
+                Q(publico_objetivo__contains='Publico General') |
+                Q(publico_objetivo__contains='Público General') # Agregado por si acaso
             )
         elif es_alumno:
-            # Alumno ve: 'Estudiantes' y 'Publico General'
             eventos = eventos.filter(
                 Q(publico_objetivo__contains='Estudiantes') | 
-                Q(publico_objetivo__contains='Publico General')
+                Q(publico_objetivo__contains='Publico General') |
+                Q(publico_objetivo__contains='Público General')
             )
         
         # Serializamos
         lista = EventoSerializer(eventos, many=True).data
         
-        # Parsear publico_objetivo de string a JSON real para que el frontend lo lea como array
+        # Parsear publico_objetivo de string a JSON para el frontend
         for evento in lista:
+            # Agregamos un campo helper para mostrar el nombre facil en la tabla
+            if "responsable_data" in evento:
+                 evento["responsable_nombre"] = f"{evento['responsable_data']['first_name']} {evento['responsable_data']['last_name']}"
+
             if "publico_objetivo" in evento and evento["publico_objetivo"]:
                 try:
                     evento["publico_objetivo"] = json.loads(evento["publico_objetivo"])
@@ -55,13 +58,12 @@ class EventosAll(generics.CreateAPIView):
     # Registrar evento (Solo Admin)
     @transaction.atomic
     def post(self, request, *args, **kwargs):
-        # Validar permisos
         if not request.user.groups.filter(name='administrador').exists():
             return Response({"details": "No tienes permisos para registrar eventos"}, 403)
 
         evento_data = request.data.copy()
         
-        # Convertir lista a string JSON si viene como array
+        # Convertir lista a string JSON si viene como array desde Angular
         if 'publico_objetivo' in evento_data:
             if isinstance(evento_data['publico_objetivo'], list):
                 evento_data['publico_objetivo'] = json.dumps(evento_data['publico_objetivo'])
@@ -96,35 +98,22 @@ class EventosView(generics.CreateAPIView):
             return Response({"details": "No tienes permisos para editar"}, 403)
 
         evento = get_object_or_404(Eventos, id=request.data.get("id"))
-        
-        # Actualizamos campos manual o con serializer partial
-        evento.nombre = request.data.get("nombre", evento.nombre)
-        evento.tipo = request.data.get("tipo", evento.tipo)
-        evento.fecha_realizacion = request.data.get("fecha_realizacion", evento.fecha_realizacion)
-        evento.hora_inicio = request.data.get("hora_inicio", evento.hora_inicio)
-        evento.hora_fin = request.data.get("hora_fin", evento.hora_fin)
-        evento.lugar = request.data.get("lugar", evento.lugar)
-        evento.programa_educativo = request.data.get("programa_educativo", evento.programa_educativo)
-        evento.descripcion = request.data.get("descripcion", evento.descripcion)
-        evento.cupo = request.data.get("cupo", evento.cupo)
+        data_update = request.data.copy()
 
-        # Tratar JSON y Foreign Key
-        if "publico_objetivo" in request.data:
-            po = request.data["publico_objetivo"]
+        # Tratar JSON de publico_objetivo antes de pasar al serializer
+        if "publico_objetivo" in data_update:
+            po = data_update["publico_objetivo"]
             if isinstance(po, list):
-                evento.publico_objetivo = json.dumps(po)
-            else:
-                evento.publico_objetivo = po
+                data_update["publico_objetivo"] = json.dumps(po)
         
-        if "responsable" in request.data:
-            try:
-                user_resp = User.objects.get(id=request.data["responsable"])
-                evento.responsable = user_resp
-            except User.DoesNotExist:
-                pass # O lanzar error
-
-        evento.save()
-        return Response(EventoSerializer(evento).data, 200)
+        # Usamos partial=True para actualizar solo los campos que vengan
+        serializer = EventoSerializer(evento, data=data_update, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, 200)
+        
+        return Response(serializer.errors, 400)
 
     # Eliminar evento (Solo Admin)
     @transaction.atomic
